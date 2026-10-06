@@ -3,7 +3,7 @@
 
 import lm_eval
 from lm_eval.models.huggingface import HFLM
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, NonNegativeInt, PositiveInt
 
 from heretic.scorer import Context, Score, Scorer
 
@@ -22,6 +22,25 @@ class Settings(BaseModel):
     metric: str = Field(
         default="acc_norm,none",
         description="Task metric to use as the benchmark score.",
+    )
+
+    apply_chat_template: bool = Field(
+        default=False,
+        description=(
+            "Whether to wrap each benchmark prompt in the model's chat template. "
+            "Instruction-tuned models often score near chance on the harness's raw "
+            "completion format and like they do in chat with the template applied."
+        ),
+    )
+
+    num_fewshot: NonNegativeInt | None = Field(
+        default=None,
+        description="Number of few-shot examples to include (unset = the task's default).",
+    )
+
+    limit: PositiveInt | None = Field(
+        default=None,
+        description="Evaluate only the first N examples of the task (unset = all).",
     )
 
 
@@ -58,6 +77,13 @@ class BenchmarkScore(Scorer):
         results = lm_eval.simple_evaluate(
             model=self.hflm,
             tasks=[self.settings.task],
+            num_fewshot=self.settings.num_fewshot,
+            limit=self.settings.limit,
+            apply_chat_template=self.settings.apply_chat_template,
+            fewshot_as_multiturn=(
+                self.settings.apply_chat_template
+                and (self.settings.num_fewshot or 0) > 0
+            ),
         )
 
         benchmark_score = float(

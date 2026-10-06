@@ -66,25 +66,44 @@ class BenchmarkScore(Scorer):
             batch_size="auto",
         )
 
+        self._release_model()
+
+    def _attach_model(self, ctx: Context) -> None:
+        self.hflm.pretrained = ctx._model.model
+        self.hflm._model = ctx._model.model
+
+    def _release_model(self) -> None:
+        # Between evaluations, the HFLM object must not reference the model.
+        # Model.reset_model() reloads the model from disk after a merged export,
+        # after every full-weight ARA trial, and when switching models; it can
+        # only free the accelerator memory of the old model if nothing else
+        # holds on to it. Otherwise the reload is silently offloaded to the CPU,
+        # and every later operation on the model fails with errors about meta
+        # tensors.
+        self.hflm.pretrained = None
+        self.hflm._model = None
+
     def get_score(self, ctx: Context) -> Score:
         # The purpose of this hack, where we initialize the HFLM object once,
         # then update its internal model every time we calculate the score,
         # is to get the benefits of batch size caching while allowing for
         # model reloads, e.g. when using --evaluate-model.
-        self.hflm.pretrained = ctx._model.model
-        self.hflm._model = ctx._model.model
+        self._attach_model(ctx)
 
-        results = lm_eval.simple_evaluate(
-            model=self.hflm,
-            tasks=[self.settings.task],
-            num_fewshot=self.settings.num_fewshot,
-            limit=self.settings.limit,
-            apply_chat_template=self.settings.apply_chat_template,
-            fewshot_as_multiturn=(
-                self.settings.apply_chat_template
-                and (self.settings.num_fewshot or 0) > 0
-            ),
-        )
+        try:
+            results = lm_eval.simple_evaluate(
+                model=self.hflm,
+                tasks=[self.settings.task],
+                num_fewshot=self.settings.num_fewshot,
+                limit=self.settings.limit,
+                apply_chat_template=self.settings.apply_chat_template,
+                fewshot_as_multiturn=(
+                    self.settings.apply_chat_template
+                    and (self.settings.num_fewshot or 0) > 0
+                ),
+            )
+        finally:
+            self._release_model()
 
         benchmark_score = float(
             results["results"][self.settings.task][self.settings.metric]

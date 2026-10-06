@@ -1700,6 +1700,11 @@ def run():
                                             first_benchmark = False
                             except KeyboardInterrupt:
                                 pass
+                            finally:
+                                # This local would otherwise keep the model alive
+                                # when it is reloaded later (e.g. after a merged
+                                # export), forcing the reload to offload to the CPU.
+                                del hflm
 
                             # The benchmark run might have been cancelled by the user
                             # before any benchmark was completed, so we only print results

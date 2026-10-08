@@ -38,6 +38,7 @@ patch_tqdm()
 import logging
 import math
 import os
+import platform
 import random
 import re
 import time
@@ -180,8 +181,14 @@ def obtain_export_strategy(
 
 def run():
     # Enable expandable segments to reduce memory fragmentation on multi-GPU setups.
+    # Not on Windows: with torch 2.14 the expandable-segments allocator there
+    # fails large single allocations outright (a 47 GiB request is refused with
+    # 93 GiB free, before PyTorch holds a single byte), so a 27B model cannot
+    # even be loaded. torch 2.13 happens to cope, but the setting buys nothing
+    # on a single GPU, so it is skipped on Windows regardless of version.
     if (
-        "PYTORCH_ALLOC_CONF" not in os.environ
+        platform.system() != "Windows"
+        and "PYTORCH_ALLOC_CONF" not in os.environ
         and "PYTORCH_CUDA_ALLOC_CONF" not in os.environ
     ):
         os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"

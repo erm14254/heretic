@@ -91,11 +91,7 @@ def _temporarily_hide_local_adapter_files(model_path: str):
 
     renamed: list[tuple[Path, Path]] = []
     try:
-        for name in (
-            "adapter_config.json",
-            "adapter_model.safetensors",
-            "adapter_model.bin",
-        ):
+        for name in ("adapter_config.json", "adapter_model.safetensors", "adapter_model.bin"):
             src = path / name
             if src.exists():
                 dst = path / f".{name}.heretic-hidden"
@@ -106,7 +102,6 @@ def _temporarily_hide_local_adapter_files(model_path: str):
         for src, dst in reversed(renamed):
             if src.exists() and not dst.exists():
                 src.rename(dst)
-
 
 class Model:
     model: PreTrainedModel | PeftModel
@@ -716,14 +711,7 @@ class Model:
             for component, modules in self.get_layer_modules(layer_index).items():
                 for module_index, module in enumerate(modules):
                     module = cast(Linear, module)
-                    weight = module.weight
-
-                    # Optimize an fp32 copy and write back once. Optimizing the
-                    # bf16 weight directly makes the outcome a lottery: the
-                    # per-element updates of a gentle edit are smaller than the
-                    # weight's resolution and vanish, so the matrix either never
-                    # moves or only moves once the optimization runs away.
-                    matrix = weight.detach().float().requires_grad_(True)
+                    matrix = module.weight
 
                     row_norms = LA.vector_norm(matrix, dim=1, keepdim=True).detach()
 
@@ -740,10 +728,10 @@ class Model:
                         module_index
                     ]
 
-                    good_input = good_input.to(matrix.device).float()
-                    good_output = good_output.to(matrix.device).float()
-                    bad_input = bad_input.to(matrix.device).float()
-                    bad_output = bad_output.to(matrix.device).float()
+                    good_input = good_input.to(matrix.device)
+                    good_output = good_output.to(matrix.device)
+                    bad_input = bad_input.to(matrix.device)
+                    bad_output = bad_output.to(matrix.device)
 
                     def objective(matrix: Tensor) -> Tensor:
                         new_good_output = good_input @ matrix.T
@@ -800,8 +788,7 @@ class Model:
                     optimizer.zero_grad(set_to_none=True)
 
                     with torch.no_grad():
-                        weight.copy_(get_matrix().to(weight.dtype))
-                    del matrix, optimizer
+                        matrix.copy_(get_matrix())
 
     def ara_lora_abliterate(
         self,
@@ -852,12 +839,8 @@ class Model:
                     with torch.no_grad():
                         lora_A.copy_(initial_A)
 
-                    good_input, good_output = good_module_io[layer_index][component][
-                        module_index
-                    ]
-                    bad_input, bad_output = bad_module_io[layer_index][component][
-                        module_index
-                    ]
+                    good_input, good_output = good_module_io[layer_index][component][module_index]
+                    bad_input, bad_output = bad_module_io[layer_index][component][module_index]
 
                     good_input = good_input.float().to(lora_A.device)
                     good_output = good_output.float().to(lora_A.device)

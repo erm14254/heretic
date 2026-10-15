@@ -132,6 +132,17 @@ class Settings(BaseModel):
         description="Whether to print the replies the parser could not read.",
     )
 
+    batch_size: PositiveInt | None = Field(
+        default=None,
+        description=(
+            "Prompts per generate() call (unset = the global batch_size). MMLU "
+            "passages run to a few thousand tokens and a batch is padded to its "
+            "longest prompt, so a batch size that suits the short refusal prompts "
+            "can run out of memory here: a 31B model whose attention has no flash "
+            "kernel needed 16 on a 96 GB GPU where the refusal scorer ran 64."
+        ),
+    )
+
     dataset: str = Field(
         default="cais/mmlu",
         description="Hugging Face dataset with MMLU subjects as configurations.",
@@ -251,7 +262,9 @@ class MMLUGenerative(Scorer):
         tokenized inputs and the prompt-inclusive output ids, plus a tokenizer.
         """
         responses: list[str] = []
-        batch_size = max(1, self.heretic_settings.batch_size)
+        batch_size = self.settings.batch_size or max(
+            1, self.heretic_settings.batch_size
+        )
         for batch in batchify(prompts, batch_size):
             inputs, outputs = model.generate(
                 batch, max_new_tokens=self.settings.max_new_tokens

@@ -13,6 +13,7 @@ class BenchmarkSettingsTests(unittest.TestCase):
         self.assertFalse(settings.apply_chat_template)
         self.assertIsNone(settings.num_fewshot)
         self.assertIsNone(settings.limit)
+        self.assertEqual(settings.batch_size, "auto")
 
     def test_accepts_chat_template_fewshot_and_limit(self) -> None:
         settings = BenchmarkSettings(
@@ -25,6 +26,13 @@ class BenchmarkSettingsTests(unittest.TestCase):
 
         self.assertTrue(settings.apply_chat_template)
         self.assertEqual(settings.limit, 500)
+
+    def test_accepts_a_fixed_harness_batch_size(self) -> None:
+        self.assertEqual(BenchmarkSettings(batch_size=8).batch_size, 8)
+        self.assertEqual(BenchmarkSettings(batch_size="auto:2").batch_size, "auto:2")
+
+        with self.assertRaises(ValueError):
+            BenchmarkSettings(batch_size=0)
 
 
 if __name__ == "__main__":

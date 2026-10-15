@@ -43,6 +43,17 @@ class Settings(BaseModel):
         description="Evaluate only the first N examples of the task (unset = all).",
     )
 
+    batch_size: PositiveInt | str = Field(
+        default="auto",
+        description=(
+            'Batch size for the harness\'s forward passes: a number, or "auto" to let '
+            "the harness pick the largest batch that fits. The automatic choice is "
+            "made against the model alone and can exceed what fits once the study's "
+            "own state is resident (a 31B model with a 262k-token vocabulary on a 96 GB "
+            "GPU ran out of memory at the auto-selected 64); set a fixed size then."
+        ),
+    )
+
 
 class BenchmarkScore(Scorer):
     """
@@ -63,7 +74,7 @@ class BenchmarkScore(Scorer):
         self.hflm = HFLM(
             pretrained=ctx._model.model,  # ty:ignore[invalid-argument-type]
             tokenizer=ctx._model.tokenizer,  # ty:ignore[invalid-argument-type]
-            batch_size="auto",
+            batch_size=self.settings.batch_size,
         )
 
         self._release_model()

@@ -104,6 +104,13 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(settings.per_subject, 20)
         self.assertEqual(settings.max_new_tokens, 16)
 
+    def test_batch_size_override_defaults_to_the_global_setting(self) -> None:
+        self.assertIsNone(Settings().batch_size)
+        self.assertEqual(Settings(batch_size=16).batch_size, 16)
+
+        with self.assertRaises(ValueError):
+            Settings(batch_size=0)
+
 
 if __name__ == "__main__":
     unittest.main()

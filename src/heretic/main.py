@@ -35,6 +35,7 @@ from .progress import patch_tqdm
 patch_tqdm()
 """
 
+import json
 import logging
 import math
 import os
@@ -273,7 +274,9 @@ def run():
 
         print()
 
-        settings = Settings.model_validate(reproduction_information["settings"])
+        settings = Settings.model_validate_init_only(
+            reproduction_information["settings"], settings
+        )
 
     if settings.seed is None:
         settings.seed = random.randint(0, 2**32 - 1)
@@ -411,8 +414,8 @@ def run():
             return
 
         if action == "continue":
-            settings = Settings.model_validate_json(
-                existing_study.user_attrs["settings"]
+            settings = Settings.model_validate_init_only(
+                json.loads(existing_study.user_attrs["settings"]), settings
             )
         elif action == "restart":
             os.unlink(study_checkpoint_file)
